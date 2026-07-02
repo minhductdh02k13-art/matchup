@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { UID_COOKIE } from "@/lib/session";
-import { adminAuth } from "@/lib/firebase-admin";
+import { verifyFirebaseToken } from "@/lib/verify-firebase-token";
 
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 phút
 
@@ -85,7 +85,7 @@ export async function verifyOtp(formData: FormData) {
 
 // ===== Đăng nhập bằng Firebase (idToken từ trình duyệt) — hỗ trợ cả Google lẫn SĐT =====
 export async function loginWithFirebase(idToken: string) {
-  const decoded = await adminAuth().verifyIdToken(idToken);
+  const decoded = await verifyFirebaseToken(idToken);
 
   const phone = decoded.phone_number ? normalizePhone(decoded.phone_number) : null;
   const email = decoded.email ?? null;
