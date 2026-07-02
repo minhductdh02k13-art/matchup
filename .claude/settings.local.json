@@ -61,7 +61,25 @@
       "Bash(git rm *)",
       "Bash(git add *)",
       "Bash(git config *)",
-      "Bash(git commit -q -m 'Matchup MVP: auth, matches, map, check-in, reviews, notifications *)"
+      "Bash(git commit -q -m 'Matchup MVP: auth, matches, map, check-in, reviews, notifications *)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_lR0FTXMEfnJ9@ep-plain-heart-aozimzc5.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require\" npx prisma db push --skip-generate)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_lR0FTXMEfnJ9@ep-plain-heart-aozimzc5.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require\" npx tsx prisma/seed.ts)",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(GIT_TERMINAL_PROMPT=0 timeout 15 git ls-remote origin)",
+      "Bash(GIT_TERMINAL_PROMPT=0 timeout 20 git ls-remote origin)",
+      "Bash(GIT_TERMINAL_PROMPT=0 timeout 20 git ls-remote --heads origin main)",
+      "Bash(GIT_TERMINAL_PROMPT=0 timeout 60 git push -u origin main)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://matchup-jade.vercel.app/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://matchup-jade.vercel.app/login)",
+      "Bash(curl -s -D - -o /dev/null https://matchup-jade.vercel.app/login)",
+      "Bash(curl -s https://matchup-jade.vercel.app/login)",
+      "Bash(grep -oiE \"digest[^<]{0,40}|error[^<]{0,60}\")",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_lR0FTXMEfnJ9@ep-plain-heart-aozimzc5.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require\" npx next start -p 3001)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/login)",
+      "Bash(curl -s -D - -o /dev/null https://matchup-jade.vercel.app/)"
     ]
   }
 }
