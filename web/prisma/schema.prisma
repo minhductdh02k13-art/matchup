@@ -1,0 +1,428 @@
+// KÈO APP — Prisma schema (theo docs/01-ERD.md)
+// DB: PostgreSQL. Tiền lưu Int (VND). Thời gian UTC.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ========== ENUMS ==========
+
+enum UserRole {
+  user
+  admin
+}
+
+enum UserStatus {
+  active
+  banned
+  deleted
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum Language {
+  vi
+  en
+}
+
+enum AuthProvider {
+  phone_otp
+  google
+  apple
+}
+
+enum SkillLevel {
+  beginner
+  intermediate
+  advanced
+  pro
+}
+
+enum MatchStatus {
+  open
+  full
+  locked
+  closed
+  ongoing
+  completed
+  cancelled
+}
+
+enum CostSplitMode {
+  per_host_total // chia đều tổng tiền theo số người
+  fixed_per_person // giá cố định mỗi người
+}
+
+enum GenderReq {
+  any
+  male
+  female
+}
+
+enum SkillReq {
+  any
+  beginner
+  intermediate
+  advanced
+  pro
+}
+
+enum ParticipantStatus {
+  pending
+  approved
+  rejected
+  waitlisted
+  invited // được mời từ waitlist, chờ xác nhận trong N phút
+  cancelled_by_user
+  removed_by_host
+}
+
+enum CheckInMethod {
+  gps
+  qr
+}
+
+enum ReviewDirection {
+  host_to_player
+  player_to_host
+}
+
+enum ReportReason {
+  no_show
+  late
+  rude
+  skill_fraud
+  spam
+  other
+}
+
+enum ReportStatus {
+  pending
+  reviewed
+  actioned
+  dismissed
+}
+
+enum DevicePlatform {
+  ios
+  android
+  web
+}
+
+enum NotificationType {
+  join_request
+  approved
+  rejected
+  waitlist_invite
+  match_soon
+  match_full
+  match_cancelled
+  system
+}
+
+// ========== CORE ==========
+
+model User {
+  id           String     @id @default(cuid())
+  phone        String?    @unique
+  email        String?    @unique
+  passwordHash String?
+  fullName     String
+  nickname     String?
+  avatarUrl    String?
+  birthYear    Int?
+  gender       Gender?
+  city         String?
+  district     String?
+  homeLat      Float?
+  homeLng      Float?
+  role         UserRole   @default(user)
+  status       UserStatus @default(active)
+  language     Language   @default(vi)
+
+  // Trust Score (cache)
+  trustScore    Float? // 0..100, null = user mới
+  ratingAvg     Float   @default(0)
+  ratingCount   Int     @default(0)
+  matchesPlayed Int     @default(0)
+  cancelRate    Float   @default(0)
+  onTimeRate    Float   @default(0)
+  noShowCount   Int     @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  identities        AuthIdentity[]
+  sports            UserSport[]
+  hostedMatches     Match[]            @relation("HostMatches")
+  participations    MatchParticipant[]
+  checkIns          CheckIn[]
+  reviewsGiven      Review[]           @relation("ReviewsGiven")
+  reviewsReceived   Review[]           @relation("ReviewsReceived")
+  reportsMade       Report[]           @relation("ReportsMade")
+  reportsAgainst    Report[]           @relation("ReportsAgainst")
+  savedMatches      SavedMatch[]
+  notifications     Notification[]
+  deviceTokens      DeviceToken[]
+  createdVenues     Venue[]
+
+  @@index([homeLat, homeLng])
+}
+
+model AuthIdentity {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider    AuthProvider
+  providerUid String
+  createdAt   DateTime     @default(now())
+
+  @@unique([provider, providerUid])
+  @@index([userId])
+}
+
+model Sport {
+  id        String   @id @default(cuid())
+  code      String   @unique // football, badminton
+  name      String
+  icon      String?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  userSports UserSport[]
+  matches    Match[]
+}
+
+model UserSport {
+  id             String     @id @default(cuid())
+  userId         String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sportId        String
+  sport          Sport      @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  skillLevel     SkillLevel @default(beginner)
+  attributesJson Json? // {"position":"Tiền đạo","dominant_hand":"Phải"}
+  isFavorite     Boolean    @default(false)
+
+  @@unique([userId, sportId])
+  @@index([sportId])
+}
+
+// ========== VENUE & MATCH ==========
+
+model Venue {
+  id            String   @id @default(cuid())
+  name          String
+  address       String
+  lat           Float
+  lng           Float
+  googlePlaceId String?
+  city          String?
+  district      String?
+  createdById   String?
+  createdBy     User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  isVerified    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  matches Match[]
+
+  @@index([lat, lng])
+  @@index([name])
+}
+
+model Match {
+  id          String  @id @default(cuid())
+  hostId      String
+  host        User    @relation("HostMatches", fields: [hostId], references: [id])
+  sportId     String
+  sport       Sport   @relation(fields: [sportId], references: [id])
+  venueId     String
+  venue       Venue   @relation(fields: [venueId], references: [id])
+  title       String
+  description String?
+  rules       String?
+
+  startsAt          DateTime
+  endsAt            DateTime
+  registerDeadline  DateTime?
+  slotsNeeded       Int
+  slotsFilled       Int       @default(0)
+
+  genderReq GenderReq @default(any)
+  ageMin    Int?
+  ageMax    Int?
+  skillReq  SkillReq  @default(any)
+
+  // Chia tiền
+  totalCost      Int           @default(0)
+  costSplitMode  CostSplitMode @default(per_host_total)
+  pricePerPerson Int?
+
+  status       MatchStatus @default(open)
+  cancelReason String?
+  shareCode    String      @unique
+  coverImageUrl String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  images       MatchImage[]
+  participants MatchParticipant[]
+  checkIns     CheckIn[]
+  reviews      Review[]
+  reports      Report[]
+  savedBy      SavedMatch[]
+
+  @@index([status])
+  @@index([startsAt])
+  @@index([sportId])
+}
+
+model MatchImage {
+  id        String @id @default(cuid())
+  matchId   String
+  match     Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int    @default(0)
+}
+
+model MatchParticipant {
+  id                String            @id @default(cuid())
+  matchId           String
+  match             Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status            ParticipantStatus @default(pending)
+  waitlistPosition  Int?
+  meetsRequirements Boolean           @default(true)
+  invitedAt         DateTime?
+  joinedAt          DateTime          @default(now())
+  decidedAt         DateTime?
+
+  @@unique([matchId, userId])
+  @@index([matchId, status])
+  @@index([userId])
+}
+
+// ========== SAU TRẬN ==========
+
+model CheckIn {
+  id          String        @id @default(cuid())
+  matchId     String
+  match       Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  method      CheckInMethod
+  lat         Float?
+  lng         Float?
+  checkedInAt DateTime      @default(now())
+
+  @@unique([matchId, userId])
+}
+
+model Review {
+  id         String          @id @default(cuid())
+  matchId    String
+  match      Match           @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewer   User            @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+  revieweeId String
+  reviewee   User            @relation("ReviewsReceived", fields: [revieweeId], references: [id])
+  rating     Int // 1..5
+  comment    String?
+  direction  ReviewDirection
+  createdAt  DateTime        @default(now())
+
+  @@unique([matchId, reviewerId, revieweeId])
+  @@index([revieweeId])
+}
+
+model Report {
+  id             String       @id @default(cuid())
+  matchId        String?
+  match          Match?       @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  reporterId     String
+  reporter       User         @relation("ReportsMade", fields: [reporterId], references: [id])
+  reportedUserId String
+  reportedUser   User         @relation("ReportsAgainst", fields: [reportedUserId], references: [id])
+  reason         ReportReason
+  detail         String?
+  status         ReportStatus @default(pending)
+  createdAt      DateTime     @default(now())
+
+  @@index([status])
+}
+
+// ========== PHỤ TRỢ ==========
+
+model SavedMatch {
+  id      String @id @default(cuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matchId String
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, matchId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  dataJson  Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+}
+
+model DeviceToken {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String         @unique
+  platform  DevicePlatform
+  createdAt DateTime       @default(now())
+}
+
+model Banner {
+  id        String   @id @default(cuid())
+  imageUrl  String
+  link      String?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model SystemSetting {
+  key       String   @id
+  valueJson Json
+  updatedAt DateTime @updatedAt
+}
+
+// Mã OTP đăng nhập bằng SĐT. Giai đoạn dev: mã hiển thị trên màn hình, chưa gửi SMS thật.
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  phone      String
+  code       String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone])
+}

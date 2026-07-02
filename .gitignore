@@ -1,0 +1,22 @@
+# Bí mật — KHÔNG đưa lên GitHub
+.env
+.env.*
+*firebase-adminsdk*.json
+*-service-account*.json
+
+# Node
+node_modules/
+web/node_modules/
+
+# Next.js
+web/.next/
+web/out/
+
+# Prisma generated client
+web/src/generated/
+
+# Log/tạm
+*.log
+
+# Claude Code local config
+.claude/
