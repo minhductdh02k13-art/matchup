@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requestOtp, verifyOtp } from "@/lib/actions/auth-actions";
 import { GoogleLoginButton } from "@/components/GoogleLoginButton";
+import { InAppBrowserNotice } from "@/components/InAppBrowserNotice";
 
 // Firebase đã cấu hình chưa? (có cả key client lẫn server)
 const firebaseOn =
@@ -39,6 +40,7 @@ export default async function LoginPage({
 
       {firebaseOn ? (
         <>
+          <InAppBrowserNotice />
           <GoogleLoginButton />
           <p className="text-center text-xs text-slate-400">
             Đăng nhập nhanh bằng Google. Bạn có thể thêm số điện thoại trong hồ sơ sau.
