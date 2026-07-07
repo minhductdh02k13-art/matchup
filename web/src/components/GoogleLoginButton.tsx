@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase-client";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { loginWithFirebase } from "@/lib/actions/auth-actions";
@@ -9,7 +8,6 @@ import { loginWithFirebase } from "@/lib/actions/auth-actions";
 const provider = new GoogleAuthProvider();
 
 export function GoogleLoginButton() {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,8 +20,9 @@ export function GoogleLoginButton() {
       const cred = await signInWithPopup(auth, provider);
       const idToken = await cred.user.getIdToken();
       const { isNew } = await loginWithFirebase(idToken);
-      router.push(isNew ? "/profile?welcome=1" : "/");
-      router.refresh();
+      // Tải lại trang HẲN (không phải chuyển mềm) để trình duyệt chắc chắn
+      // gửi cookie phiên vừa đặt -> mobile không bị "đăng nhập xong vẫn như chưa".
+      window.location.assign(isNew ? "/profile?welcome=1" : "/");
     } catch (e) {
       const code = (e as { code?: string })?.code ?? "";
       if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
