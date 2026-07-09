@@ -154,9 +154,10 @@ model User {
   ratingAvg     Float   @default(0)
   ratingCount   Int     @default(0)
   matchesPlayed Int     @default(0)
-  cancelRate    Float   @default(0)
-  onTimeRate    Float   @default(0)
-  noShowCount   Int     @default(0)
+  cancelRate      Float @default(0)
+  onTimeRate      Float @default(0)
+  noShowCount     Int   @default(0)
+  lateCancelCount Int   @default(0) // số lần hủy sát giờ sau khi đã được duyệt
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

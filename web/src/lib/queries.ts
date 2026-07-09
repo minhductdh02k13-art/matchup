@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { haversineKm } from "@/lib/format";
+import { LOW_TRUST_THRESHOLD } from "@/lib/trust";
 
 export type MatchFilter = {
   sport?: string; // sport code
@@ -52,6 +53,13 @@ export async function getMatches(filter: MatchFilter) {
       (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity)
     );
   }
+
+  // Hạ hạng: kèo của host uy tín rất thấp bị đẩy xuống cuối (giữ thứ tự trong nhóm)
+  const isLow = (t: number | null) => t != null && t < LOW_TRUST_THRESHOLD;
+  result = [
+    ...result.filter((m) => !isLow(m.host.trustScore)),
+    ...result.filter((m) => isLow(m.host.trustScore)),
+  ];
 
   return result;
 }

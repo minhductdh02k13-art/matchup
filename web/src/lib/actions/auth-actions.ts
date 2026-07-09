@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { UID_COOKIE } from "@/lib/session";
 import { verifyFirebaseToken } from "@/lib/verify-firebase-token";
+import { recomputeUserStats } from "@/lib/trust";
 
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 phút
 
@@ -110,6 +111,8 @@ export async function loginWithFirebase(idToken: string) {
   }
 
   await startSession(user.id);
+  // Cập nhật uy tín định kỳ (no-show / hủy được phản ánh sau mỗi lần đăng nhập)
+  if (!isNew) await recomputeUserStats(user.id).catch(() => {});
   revalidatePath("/", "layout");
   return { isNew };
 }

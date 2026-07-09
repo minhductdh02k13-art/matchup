@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { notify } from "@/lib/notify";
+import { recomputeUserStats, matchCreationLimit } from "@/lib/trust";
 import type { Prisma } from "@/generated/prisma/client";
 
 // Trong 1 transaction: mời người waitlist kế tiếp (vị trí nhỏ nhất) khi có chỗ trống.
@@ -36,6 +37,17 @@ function shortCode(n = 8) {
 export async function createMatch(formData: FormData) {
   const me = await getCurrentUser();
   if (!me) throw new Error("Chưa đăng nhập");
+
+  // Chống spam: giới hạn số kèo chưa diễn ra theo uy tín
+  const activeCount = await prisma.match.count({
+    where: { hostId: me.id, deletedAt: null, status: { not: "cancelled" }, endsAt: { gt: new Date() } },
+  });
+  const limit = matchCreationLimit(me.trustScore);
+  if (activeCount >= limit) {
+    throw new Error(
+      `Bạn đang có ${activeCount} kèo chưa diễn ra (giới hạn ${limit} theo uy tín). Hoàn thành hoặc hủy bớt rồi tạo tiếp.`
+    );
+  }
 
   const get = (k: string) => String(formData.get(k) ?? "").trim();
 
@@ -308,6 +320,10 @@ export async function cancelMyParticipation(matchId: string) {
     if (!p) throw new Error("Bạn chưa đăng ký trận này");
 
     const wasApproved = p.status === "approved";
+    // Hủy sát giờ = đã được duyệt & còn <3h tới giờ bắt đầu (hoặc đã qua giờ)
+    const lateCancel =
+      wasApproved && p.match.startsAt.getTime() - Date.now() < 3 * 3_600_000;
+
     await tx.matchParticipant.update({
       where: { id: p.id },
       data: { status: "cancelled_by_user" },
@@ -323,9 +339,18 @@ export async function cancelMyParticipation(matchId: string) {
         },
       });
       invitedUserId = await promoteNextWaitlist(tx, matchId);
+      if (lateCancel) {
+        await tx.user.update({
+          where: { id: me.id },
+          data: { lateCancelCount: { increment: 1 } },
+        });
+      }
     }
-    return { hostId: p.match.hostId, title: p.match.title, invitedUserId };
+    return { hostId: p.match.hostId, title: p.match.title, invitedUserId, lateCancel };
   });
+
+  // Hủy sát giờ -> tính lại uy tín ngay
+  if (result.lateCancel) await recomputeUserStats(me.id);
 
   // Báo host có người hủy + mời người chờ kế tiếp (nếu có)
   await notify(result.hostId, "system", "Có người hủy tham gia", `${me.nickname ?? me.fullName} đã hủy ở "${result.title}"`, { matchId });

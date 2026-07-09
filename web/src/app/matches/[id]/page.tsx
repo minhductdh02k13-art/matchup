@@ -4,9 +4,11 @@ import { getMatchDetail } from "@/lib/queries";
 import { getCurrentUser } from "@/lib/session";
 import { haversineKm, formatDateTime, formatTimeRange, formatVnd, costPerPerson, MATCH_STATUS_LABEL, SKILL_LABEL } from "@/lib/format";
 import { TrustBadge } from "@/components/TrustBadge";
+import { isRiskyUser } from "@/lib/trust";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { CheckInButton } from "@/components/CheckInButton";
 import { RatingForm } from "@/components/RatingForm";
+import { ReportButton } from "@/components/ReportButton";
 import { joinMatch, approveParticipant, rejectParticipant, cancelMyParticipation, cancelMatch, deleteMatch, acceptInvite, declineInvite } from "@/lib/actions/match-actions";
 
 export default async function MatchDetailPage({
@@ -113,6 +115,11 @@ export default async function MatchDetailPage({
           <p className="mt-1 text-xs text-slate-500">
             ⭐ {match.host.ratingAvg.toFixed(1)} ({match.host.ratingCount}) · {match.host.matchesPlayed} trận
           </p>
+          {me && !isHost && (
+            <div className="mt-2">
+              <ReportButton matchId={match.id} reportedUserId={match.hostId} label="chủ kèo" />
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -270,6 +277,11 @@ export default async function MatchDetailPage({
                     <span className="text-sm font-medium">{p.user.nickname ?? p.user.fullName}</span>
                     {!p.meetsRequirements && (
                       <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">Không khớp điều kiện</span>
+                    )}
+                    {isRiskyUser(p.user) && (
+                      <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700">
+                        ⚠️ {p.user.noShowCount >= 2 ? `Vắng ${p.user.noShowCount} lần` : "Uy tín thấp"}
+                      </span>
                     )}
                   </div>
                   <div className="flex gap-2">
