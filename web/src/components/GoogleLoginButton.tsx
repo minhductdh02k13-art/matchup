@@ -1,39 +1,80 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { auth } from "@/lib/firebase-client";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  type UserCredential,
+} from "firebase/auth";
 import { loginWithFirebase } from "@/lib/actions/auth-actions";
 
 const provider = new GoogleAuthProvider();
+
+// iOS Safari chặn popup mặc định -> phải dùng chuyển trang (redirect).
+// (Chrome/Firefox trên iOS dùng CriOS/FxiOS thì popup vẫn ok.)
+function isIOSSafari(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /iPhone|iPad|iPod/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+}
 
 export function GoogleLoginButton() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  // Đăng nhập kiểu chuyển trang: khi Google trả về, lấy kết quả ở đây
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((cred) => {
+        if (cred) finish(cred);
+      })
+      .catch((e) => setError(errMsg(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function finish(cred: UserCredential) {
+    setBusy(true);
+    const idToken = await cred.user.getIdToken();
+    const { isNew } = await loginWithFirebase(idToken);
+    // Tải lại trang hẳn để cookie phiên dính chắc (nhất là trên mobile)
+    window.location.assign(isNew ? "/profile?welcome=1" : "/");
+  }
+
+  function errMsg(e: unknown): string {
+    const code = (e as { code?: string })?.code ?? "";
+    if (code === "auth/unauthorized-domain")
+      return "Tên miền chưa được cho phép trong Firebase (Authorized domains).";
+    if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request")
+      return "Bạn đã đóng cửa sổ đăng nhập.";
+    return `Đăng nhập thất bại${code ? ` (${code})` : ""}. Thử lại nhé.`;
+  }
+
   async function loginGoogle() {
     setError("");
     setBusy(true);
     try {
-      // Popup: giữ mọi thứ trong 1 cửa sổ -> ổn định cả trên điện thoại,
-      // tránh lỗi mất phiên khi tên miền app khác tên miền Firebase.
+      if (isIOSSafari()) {
+        await signInWithRedirect(auth, provider); // trang sẽ chuyển đi
+        return;
+      }
       const cred = await signInWithPopup(auth, provider);
-      const idToken = await cred.user.getIdToken();
-      const { isNew } = await loginWithFirebase(idToken);
-      // Tải lại trang HẲN (không phải chuyển mềm) để trình duyệt chắc chắn
-      // gửi cookie phiên vừa đặt -> mobile không bị "đăng nhập xong vẫn như chưa".
-      window.location.assign(isNew ? "/profile?welcome=1" : "/");
+      await finish(cred);
     } catch (e) {
       const code = (e as { code?: string })?.code ?? "";
-      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
-        setError("Bạn đã đóng cửa sổ đăng nhập.");
-      } else if (code === "auth/popup-blocked") {
-        setError("Trình duyệt chặn cửa sổ đăng nhập. Cho phép popup rồi thử lại.");
-      } else if (code === "auth/unauthorized-domain") {
-        setError("Tên miền chưa được cho phép trong Firebase (Authorized domains).");
+      // Popup bị chặn -> tự chuyển sang redirect
+      if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
+        try {
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (e2) {
+          setError(errMsg(e2));
+        }
       } else {
         console.error(e);
-        setError(`Đăng nhập thất bại${code ? ` (${code})` : ""}. Thử lại nhé.`);
+        setError(errMsg(e));
       }
       setBusy(false);
     }
